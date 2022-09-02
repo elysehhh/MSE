@@ -1,0 +1,246 @@
+#### UK data ####
+#### 
+LA <- c(rep(factor(0), 16), rep(factor(1),16))
+
+NG <- rep(factor(c(0, 1, 0, 1)), c(8, 8, 8, 8))
+
+PF <- rep(rep(factor(c(0, 1)), rep(4, 2)), 4)
+
+GO <- rep(rep(factor(c(0, 1)), rep(2, 2)), 8)
+
+GP <- rep(factor(c(0, 1)), 16)
+
+y <- c(NA, 316, 695, 8, 995, 11, 76, 0, 
+       463, 1, 19, 0, 62, 0, 4, 0, 
+       54, 0, 3, 0, 19, 0, 0, 0, 
+       15, 0, 1, 0, 1, 0, 1, 0)
+
+UK <- data.frame(LA, NG, PF, GO, GP, y)
+
+uk <- UK[-1, ]
+
+miss.x_uk <- UK[1, 1:5]
+
+sum_obs_uk <- sum(uk$y, na.rm = T)
+
+CI_cal <- function(sum.ci){
+  
+  ci_mod <- quantile(sum.ci, c(0.025, 0.975))
+  
+  return(ci_mod)
+}
+
+output <- function(ci_mod_aic, ci_mod_bic, mod_aic, mod_bic, 
+                   sum_aic, sum_bic){
+  
+  aic <- AIC(mod_aic, mod_bic)
+  
+  bic <- BIC(mod_aic, mod_bic)
+  
+  pred_sum <- c(sum_aic, sum_bic)
+  
+  ci.lower <- c(ci_mod_aic[1], ci_mod_bic[1])
+  
+  ci.upper <- c(ci_mod_aic[2], ci_mod_bic[2])
+  
+  coef2 <- c(paste(names(coef(mod_aic))[-1],collapse = ", "),
+             paste(names(coef(mod_bic))[-1],collapse = ", "))
+  
+  output <- data.frame(coef2, round(pred_sum, 0),
+                       paste("(", round(ci.lower,0), ", ",
+                             round(ci.upper, 0), ")",sep = ''),
+                       round(aic[2], 2), round(bic[2], 2))
+  
+  colnames(output) <- c("Model", "Estimated  population", 
+                        "95% confidence interval", "AIC", "BIC")
+  
+  return(output)
+}
+
+plot.ci <- function(sum.ci, ci, sum, x_lim = NULL, y_lim = NULL){
+  
+  dens <- with(density(sum.ci, na.rm = T), data.frame(x, y))
+  
+  density_sub <- dens[dens$x > ci[1] & dens$x < ci[2],]
+  
+  library(ggplot2)
+  
+  plot <- ggplot(data.frame(sum.ci), aes(sum.ci)) +
+    theme_minimal() +
+    xlab(NULL) + 
+    ylab("Frequency") +
+    geom_density(fill = "grey", alpha = 0.5) +
+    geom_vline(xintercept = ci[1],lty = "dashed") +
+    #geom_vline(xintercept = ci[2],lty = "dashed") +
+    geom_area(data = density_sub, aes(x = x, y = y), fill = "lightblue", 
+              alpha = 0.8, ymax = 0.002) +
+    geom_vline(xintercept = sum, lty = "dashed", col = "red") +
+    scale_y_continuous(expand = c(0,0), limits = y_lim) +
+    scale_x_continuous(limits = x_lim)
+  
+  return(plot)
+  
+}
+
+plot_ci_sub <- function(pred, y_pred_ci, x_lim = NULL, y_lim = NULL){
+  
+  model.sub <- model_sub(pred, y_pred_ci)
+  
+  plot <- (plot.ci(model.sub[[3]][,1], model.sub[[2]][1,], model.sub[[1]][1],
+                   x_lim, y_lim) +
+             plot.ci(model.sub[[3]][,3], model.sub[[2]][3,], model.sub[[1]][3],
+                     x_lim, y_lim) +
+             plot.ci(model.sub[[3]][,5], model.sub[[2]][5,], model.sub[[1]][5],
+                     x_lim, y_lim)) /
+    (plot.ci(model.sub[[3]][,2], model.sub[[2]][2,], model.sub[[1]][2],
+             x_lim, y_lim) +
+       plot.ci(model.sub[[3]][,4], model.sub[[2]][4,], model.sub[[1]][4],
+               x_lim, y_lim) +
+       plot.ci(model.sub[[3]][,6], model.sub[[2]][6,], model.sub[[1]][6],
+               x_lim, y_lim))
+  
+  return(plot)
+  
+}
+
+
+#### model 1: all main effects ####
+
+mod1_uk <- glm(y ~ (.), family = poisson, data = uk)
+
+pred1_uk <- predict(mod1_uk, newdata = miss.x_uk, type = "response")
+
+sum1_uk <- sum_obs_uk + sum(pred1_uk) # 13444.13
+
+
+#### confidence interval ####
+
+B <- 1000 ## Bootstrap for 1000 times
+
+y_pred1_uk <- y_sum1_uk <- {}
+
+for(i in 1:B){
+  
+  y_new1_uk <- rmultinom(n = 1, size = sum(uk$y), prob = uk$y / sum(uk$y)) 
+  
+  uk_new1 <- data.frame(uk[,-6], y_new1_uk)
+  
+  model1_uk <- glm(y_new1_uk ~ (.), family = poisson, data = uk_new1)
+  
+  y_pred1_uk[i] <- predict(model1_uk, newdata = miss.x_uk, type = "response")
+  
+  y_sum1_uk[i] <- sum_obs_uk + sum(y_pred1_uk[i])
+}
+
+
+
+CI_mod1_uk <- quantile(y_sum1_uk, c(0.025, 0.975))
+
+aic1 <- AIC(mod1_uk)
+
+bic1 <- BIC(mod1_uk)
+
+pred_sum1_uk <- c(sum1_uk)
+
+CI.lower1 <- c(CI_mod1_uk[1])
+
+CI.upper1 <- c(CI_mod1_uk[2])
+
+coef1 <- paste(names(coef(mod1_uk))[-1],collapse = ", ")
+
+mod1_uk_output <- data.frame(coef1, round(pred_sum1_uk, 0), 
+                             paste("(", round(CI.lower1,0), ", ",
+                                   round(CI.upper1, 0), ")", sep = ''), 
+                             round(aic1, 2), round(bic1, 2))
+
+colnames(mod1_uk_output) <- c("Model", "Estimated  population", 
+                              "95% confidence interval", "AIC", "BIC")
+
+mod1_uk_output
+
+
+#### model 2 : two-way interaction ####
+
+mod2_uk <- glm(y ~ (.)^2 - LA : GP, family = poisson, data = uk)
+
+nothing_uk <- glm(y ~ (.), family = poisson, data = uk)
+
+pred2_uk <- predict(mod2_uk, newdata = miss.x_uk, type = "response")
+
+sum2_uk <- sum_obs_uk + sum(pred2_uk) # 13639.88
+
+
+library(MASS)
+
+### use AIC
+
+mod2_uk_aic_both <- stepAIC(mod2_uk, direction = "both", trace = 0, k = 2,
+                            lower = formula(nothing_uk), upper = formula(mod2_uk))
+
+# use BIC
+# 
+mod2_uk_bic_both <- stepAIC(mod2_uk, direction = "both", trace = 0, k = log(n),
+                            lower = formula(nothing_uk), upper = formula(mod2_uk))
+
+### predict
+
+pred2_uk_aic_both <- predict(mod2_uk_aic_both, 
+                             newdata = miss.x_uk, type = "response")
+
+pred2_uk_bic_both <- predict(mod2_uk_bic_both, 
+                             newdata = miss.x_uk, type = "response")
+
+sum2_uk_aic_both <- sum_obs_uk + pred2_uk_aic_both # 11312.99 
+
+sum2_uk_bic_both <- sum_obs_uk + pred2_uk_bic_both # 11312.99 
+
+#### confidence interval ####
+
+B <- 1000 ## Bootstrap for 1000 times
+
+y_pred2_uk_aic_both <- y_pred2_uk_bic_both <- {}
+
+y_sum2_uk_aic_both <- y_sum2_uk_bic_both <- {}
+
+
+library(MASS)
+
+for(i in 1:B){
+  
+  y_new2_uk <- rmultinom(n = 1, size = sum(uk$y), prob = uk$y / sum(uk$y)) 
+  
+  uk_new2 <- data.frame(y_new2_uk, uk[,-6])
+  
+  model2_uk <- glm(y_new2_uk ~ (.)^2 - LA : GP, family = poisson, data = uk_new2)
+  
+  fit2_uk_aic_both <- stepAIC(model2_uk, direction = "both", trace = 0, k = 2,
+                              lower = formula(nothing_uk), upper = formula(model2_uk))
+  
+  fit2_uk_bic_both <- stepAIC(model2_uk, direction = "both", 
+                              trace = 0, k = log(n),
+                              lower = formula(nothing_uk), uppwer = formula(model2_uk))
+  
+  y_pred2_uk_aic_both[i] <- predict(fit2_uk_aic_both,
+                                    newdata = miss.x_uk, type = "response")
+  
+  y_pred2_uk_bic_both[i] <- predict(fit2_uk_bic_both,
+                                    newdata = miss.x_uk, type = "response")
+  
+  y_sum2_uk_aic_both[i] <- sum_obs_uk + sum(y_pred2_uk_aic_both[i])
+  
+  y_sum2_uk_bic_both[i] <- sum_obs_uk + sum(y_pred2_uk_bic_both[i])
+}
+
+
+CI_mod2_uk_aic <- CI_cal(y_sum2_uk_aic_both)
+
+CI_mod2_uk_bic <- CI_cal(y_sum2_uk_bic_both)
+
+mod2_uk_output <- output(CI_mod2_uk_aic, CI_mod2_uk_bic, 
+                         mod2_uk_aic_both, mod2_uk_bic_both,
+                         sum2_uk_aic_both, sum2_uk_bic_both)
+
+colnames(mod2_uk_output) <- c("Model", "Estimated  population", 
+                              "95% confidence interval", "AIC", "BIC")
+
+mod2_uk_output
