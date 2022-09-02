@@ -244,3 +244,450 @@ colnames(mod2_uk_output) <- c("Model", "Estimated  population",
                               "95% confidence interval", "AIC", "BIC")
 
 mod2_uk_output
+
+
+
+#### IDU data ####
+
+library("conting")
+
+data("ScotPWID")
+
+drop <- which(is.na(ScotPWID$y))
+
+pwid <- ScotPWID[-drop, ]
+
+pwid_fac <- pwid
+
+for(i in 2:length(pwid)){
+  pwid_fac[,i] <- factor(pwid[,i], labels = c(0,1))
+}
+
+miss.x_pwid <- data.frame(S1 = rep(factor(0), 8), S2 = rep(factor(0), 8), 
+                          S3 = rep(factor(0), 8), S4 = rep(factor(0), 8),
+                          Region = rep(factor(c(0,1)), c(4,4)), 
+                          Gender = rep(rep(factor(c(0,1)), c(2, 2)), 2), 
+                          Age = rep(factor(c(0,1)), 4))
+
+sum_obs_pwid <- sum(pwid$y, na.rm = T)
+
+model_sub <- function(pred, y_pred.ci){
+  
+  GGC <- sum(pred[miss.x_pwid$Region == 0])
+  
+  Rest <- sum(pred[miss.x_pwid$Region == 1])
+  
+  Male<- sum(pred[miss.x_pwid$Gender == 0])
+  
+  Female<- sum(pred[miss.x_pwid$Gender == 1])
+  
+  Young <- sum(pred[miss.x_pwid$Age == 0])
+  
+  Old <- sum(pred[miss.x_pwid$Age == 1])
+  
+  GGC_sum <- sum(pwid_fac$y[miss.x_pwid$Region == 0]) + rowSums(y_pred.ci[ ,miss.x_pwid$Region == 0])
+  
+  Rest_sum <- sum(pwid_fac$y[miss.x_pwid$Region == 1]) + rowSums(y_pred.ci[ ,miss.x_pwid$Region == 1])
+  
+  Male_sum <- sum(pwid_fac$y[miss.x_pwid$Gender == 0]) + rowSums(y_pred.ci[ ,miss.x_pwid$Gender == 0])
+  
+  Female_sum <- sum(pwid_fac$y[miss.x_pwid$Gender == 1]) + rowSums(y_pred.ci[ ,miss.x_pwid$Gender == 1])
+  
+  Young_sum <- sum(pwid_fac$y[miss.x_pwid$Age == 0]) + rowSums(y_pred.ci[ ,miss.x_pwid$Age == 0])
+  
+  Old_sum <- sum(pwid_fac$y[miss.x_pwid$Age == 1]) + rowSums(y_pred.ci[ ,miss.x_pwid$Age == 1])
+  
+  ci_GGC <- quantile(rowSums(y_pred.ci[ ,miss.x_pwid$Region == 0]), c(0.025, 0.975), 
+                     na.rm = T)
+  
+  ci_Rest <- quantile(rowSums(y_pred.ci[ ,miss.x_pwid$Region == 1]), c(0.025, 0.975), 
+                      na.rm = T)
+  
+  ci_Male <- quantile(rowSums(y_pred.ci[ ,miss.x_pwid$Gender == 0]), c(0.025, 0.975), 
+                      na.rm = T)
+  
+  ci_Female <- quantile(rowSums(y_pred.ci[ ,miss.x_pwid$Gender == 1]), c(0.025, 0.975), 
+                        na.rm = T)
+  
+  ci_Young <- quantile(rowSums(y_pred.ci[ ,miss.x_pwid$Age == 0]), c(0.025, 0.975), 
+                       na.rm = T)
+  
+  ci_Old <- quantile(rowSums(y_pred.ci[ ,miss.x_pwid$Age == 1]), c(0.025, 0.975), 
+                     na.rm = T)
+  
+  ci_GGC_print <- paste("(", paste(round(ci_GGC,0), collapse = ", "), ")", sep = "")
+  
+  Ci_Rest_print <- paste("(", paste(round(ci_Rest,0), collapse = ", "), ")", sep = "")
+  
+  ci_Male_print <- paste("(", paste(round(ci_Male,0), collapse = ", "), ")", sep = "")
+  
+  ci_Female_print <- paste("(", paste(round(ci_Female,0), collapse = ", "), ")", sep = "")
+  
+  ci_Young_print <- paste("(", paste(round(ci_Young,0), collapse = ", "), ")", sep = "")
+  
+  ci_Old_print <- paste("(", paste(round(ci_Female,0), collapse = ", "), ")", sep = "")
+  
+  ci_print <- c(ci_GGC_print, Ci_Rest_print, ci_Male_print, ci_Female_print, 
+                ci_Young_print, ci_Old_print)
+  
+  estimate <- round(c(GGC, Rest, Male, Female, Young, Old), 0)
+  
+  estimate1 <- c(GGC, Rest, Male, Female, Young, Old)
+  
+  output <- rbind(estimate, ci_print)
+  
+  colnames(output) <- c("GGC" , "Rest", "Male", "Female", "Young", "Old")
+  
+  ci <- rbind(ci_GGC, ci_Rest, ci_Male, ci_Female, ci_Young, ci_Old)
+  
+  sum <- cbind(GGC_sum, Rest_sum, Male_sum, Female_sum, Young_sum, Old_sum)
+  
+  return(list(estimate1, ci, sum, output))
+}
+
+
+
+#### model 1: all main effects ####
+
+mod1_pwid <- glm(y ~ (.), family = poisson, data = pwid_fac)
+
+pred1_pwid <- predict(mod1_pwid, newdata = miss.x_pwid, type = "response")
+
+sum1_pwid <- sum_obs_pwid + sum(pred1_pwid) # 22096.69
+
+
+#### confidence interval ####
+
+B <- 1000 ## Bootstrap for 1000 times
+
+y_pred1_pwid <- matrix(ncol = 8, nrow = B)
+
+y_sum1_pwid <- {}
+
+for(i in 1:B){
+  y_new1_pwid <- rmultinom(n = 1, size = sum(pwid$y), prob = pwid$y / sum(pwid$y)) 
+  
+  pwid_new1 <- data.frame(pwid_fac[,-1], y_new1_pwid)
+  
+  model1_pwid <- glm(y_new1_pwid ~ (.), family = poisson, data = pwid_new1)
+  
+  y_pred1_pwid[i, ] <- predict(model1_pwid, newdata = miss.x_pwid, 
+                               type = "response")
+  
+  y_sum1_pwid[i] <- sum_obs_pwid + sum(y_pred1_pwid[i,])
+}
+
+CI_mod1_pwid <- quantile(y_sum1_pwid, c(0.025, 0.975))
+
+aic1 <- AIC(mod1_pwid)
+
+bic1 <- BIC(mod1_pwid)
+
+pred_sum1_pwid <- c(sum1_pwid)
+
+CI.lower1 <- c(CI_mod1_pwid[1])
+
+CI.upper1 <- c(CI_mod1_pwid[2])
+
+coef1 <- paste(names(coef(mod1_pwid))[-1],collapse = ", ")
+
+mod1_pwid_output <- data.frame(coef1, round(pred_sum1_pwid, 0), 
+                               paste("(", round(CI.lower1,0), ", " ,
+                                     round(CI.upper1, 0), ")", sep = ''), 
+                               round(aic1, 2), round(bic1, 2))
+
+colnames(mod1_pwid_output) <- c("Model", "Estimated  population", 
+                                "95% confidence interval", "AIC", "BIC")
+
+mod1_pwid_output
+
+mod1_pwid_subsum <- model_sub(pred1_pwid, y_pred1_pwid)[[4]]
+
+mod1_pwid_subsum 
+
+
+#### model 2 : two-way interaction ####
+
+mod2_pwid <- glm(y ~ (.)^2, family = poisson, data = pwid_fac)
+
+nothing_pwid <- glm(y ~ (.), family = poisson, data = pwid_fac)
+
+pred2_pwid <- predict(mod2_pwid, newdata = miss.x_pwid, type = "response")
+
+sum2_pwid <- sum_obs_pwid + sum(pred2_pwid) # 39523.06
+
+
+library(MASS)
+
+### use AIC
+
+mod2_pwid_aic_both <- stepAIC(mod2_pwid, direction = "both", trace = 0, k = 2,
+                              lower = nothing_pwid, upper = mod2_pwid)
+
+
+### use BIC
+
+mod2_pwid_bic_both <- stepAIC(mod2_pwid, direction = "both", trace = 0, k = log(n),
+                              lower = formula(nothing_pwid), 
+                              upper = formula(mod2_pwid))
+
+### predict
+
+pred2_pwid_aic_both <- predict(mod2_pwid_aic_both, 
+                               newdata = miss.x_pwid, type = "response")
+
+pred2_pwid_bic_both <- predict(mod2_pwid_bic_both, 
+                               newdata = miss.x_pwid, type = "response")
+
+sum2_pwid_aic_both <- sum_obs_pwid + sum(pred2_pwid_aic_both) # 32775.03
+
+sum2_pwid_bic_both <- sum_obs_pwid + sum(pred2_pwid_bic_both) # 32775.03
+
+#### confidence interval ####
+
+B <- 1000 ## Bootstrap for 1000 times
+
+y_pred2_pwid_aic_both <- y_pred2_pwid_bic_both <- matrix(ncol = 8, nrow = B)
+
+y_sum2_pwid_aic_both <- y_sum2_pwid_bic_both <- {}
+
+
+library(MASS)
+
+for(i in 1:B){
+  
+  y_new2_pwid <- rmultinom(n = 1, size = sum(pwid$y), prob = pwid$y / sum(pwid$y)) 
+  
+  pwid_new2 <- data.frame(y_new2_pwid, pwid_fac[,-1])
+  
+  model2_pwid <- glm(y_new2_pwid ~ (.)^2, family = poisson, data = pwid_new2)
+  
+  fit2_pwid_aic_both <- stepAIC(model2_pwid, direction = "both", trace = 0, k = 2,
+                                lower = formula(nothing_pwid), 
+                                upper = formula(model2_pwid))
+  
+  fit2_pwid_bic_both <- stepAIC(model2_pwid, direction = "both", 
+                                trace = 0, k = log(n),
+                                lower = formula(nothing_pwid), 
+                                upper = formula(model2_pwid))
+  
+  y_pred2_pwid_aic_both[i, ] <- predict(fit2_pwid_aic_both,
+                                        newdata = miss.x_pwid, type = "response")
+  
+  y_pred2_pwid_bic_both[i, ] <- predict(fit2_pwid_bic_both,
+                                        newdata = miss.x_pwid, type = "response")
+  
+  y_sum2_pwid_aic_both[i] <- sum_obs_pwid + sum(y_pred2_pwid_aic_both[i,])
+  
+  y_sum2_pwid_bic_both[i] <- sum_obs_pwid + sum(y_pred2_pwid_bic_both[i,])
+}
+
+CI_mod2_pwid_aic <- CI_cal(y_sum2_pwid_aic_both)
+
+CI_mod2_pwid_bic <- CI_cal(y_sum2_pwid_bic_both)
+
+mod2_pwid_output <- output(CI_mod2_pwid_aic, CI_mod2_pwid_bic, 
+                           mod2_pwid_aic_both, mod2_pwid_bic_both,
+                           sum2_pwid_aic_both, sum2_pwid_bic_both)
+
+colnames(mod2_pwid_output) <- c("Model", "Estimated  population", 
+                              "95% confidence interval", "AIC", "BIC")
+
+mod2_pwid_output
+
+mod2_pwid_aic_both_subsum <- model_sub(pred2_pwid_aic_both, y_pred2_pwid_aic_both)[[4]]
+
+mod2_pwid_bic_both_subsum <- model_sub(pred2_pwid_bic_both, y_pred2_pwid_bic_both)[[4]]
+
+mod2_pwid_subsum <- rbind(mod2_pwid_aic_both_subsum, mod2_pwid_bic_both_subsum)
+
+rownames(mod2_pwid_subsum) <- c("", "AIC", "", "BIC")
+
+mod2_pwid_subsum 
+
+
+#### model 3 : three-way interaction ####
+
+mod3_pwid <- glm(y ~ (.)^3, family = poisson, data = pwid_fac)
+
+nothing_pwid <- glm(y ~ (.), family = poisson, data = pwid_fac)
+
+pred3 <- predict(mod3_pwid, newdata = miss.x_pwid, type = "response")
+
+sum3_pwid <- sum_obs_pwid + sum(pred3) # 
+
+
+library(MASS)
+
+### use AIC
+
+mod3_pwid_aic_both <- stepAIC(mod3_pwid, direction = "both", trace = 0, k = 2,
+                              lower = formula(mod2_pwid_aic_both), 
+                              upper = formula(mod3_pwid))
+
+# use BIC
+
+mod3_pwid_bic_both <- stepAIC(mod3_pwid, direction = "both", trace = 0, k = log(n),
+                              lower = formula(mod2_pwid_bic_both), 
+                              upper = formula(mod3_pwid))
+
+### predict
+
+pred3_pwid_aic_both <- predict(mod3_pwid_aic_both,
+                          newdata = miss.x_pwid, type = "response")
+
+pred3_pwid_bic_both <- predict(mod3_pwid_bic_both,
+                          newdata = miss.x_pwid, type = "response")
+
+sum3_pwid_aic_both <- sum_obs_pwid + sum(pred3_pwid_aic_both) # 38806.48
+
+sum3_pwid_bic_both <- sum_obs_pwid + sum(pred3_pwid_bic_both) # 38432.27
+
+#### confidence interval ####
+
+B <- 1000 ## Bootstrap for 1000 times
+
+y_pred3_pwid_aic_both <- y_pred3_pwid_bic_both <- matrix(ncol = 8, nrow = B)
+
+y_sum3_pwid_aic_both <- y_sum3_pwid_bic_both <- {}
+
+library(MASS)
+
+for(i in 1:B){
+  
+  y_new3_pwid <- rmultinom(n = 1, size = sum(pwid$y), prob = pwid$y / sum(pwid$y)) 
+  
+  pwid_new3 <- data.frame(y_new3_pwid, pwid_fac[,-1])
+  
+  model3_pwid <- glm(y_new3_pwid ~ (.)^3, family = poisson, data = pwid_new3)
+  
+  fit3_pwid_aic_both <- stepAIC(model3_pwid, direction = "both", 
+                                trace = 0, k = 2,
+                                lower = formula(nothing_pwid), 
+                                upper = formula(mod3_pwid))
+  
+  fit3_pwid_bic_both <- stepAIC(model3_pwid, direction = "both",
+                                trace = 0, k = log(n),
+                                lower = formula(nothing_pwid), 
+                                upper = formula(mod3_pwid))
+  
+  y_pred3_pwid_aic_both[i, ] <- predict(fit3_pwid_aic_both,
+                                   newdata = miss.x_pwid, type = "response")
+  
+  y_pred3_pwid_bic_both[i, ] <- predict(fit3_pwid_bic_both,
+                                   newdata = miss.x_pwid, type = "response")
+  
+  y_sum3_pwid_aic_both[i] <- sum_obs_pwid + sum(y_pred3_pwid_aic_both[i,], 
+                                                na.rm =  T)
+  
+  y_sum3_pwid_bic_both[i] <- sum_obs_pwid + sum(y_pred3_pwid_bic_both[i,], 
+                                                na.rm =  T)
+}
+
+CI_mod3_pwid_aic <- CI_cal(y_sum3_pwid_aic_both)
+
+CI_mod3_pwid_bic <- CI_cal(y_sum3_pwid_bic_both)
+
+mod3_pwid_output <- output(CI_mod3_pwid_aic, CI_mod3_pwid_bic, 
+                           mod3_pwid_aic_both, mod3_pwid_bic_both,
+                           sum3_pwid_aic_both, sum3_pwid_bic_both)
+
+colnames(mod3_pwid_output) <- c("Model", "Estimated  population",
+                                "95% confidence interval", "AIC", "BIC")
+
+mod3_pwid_output
+
+mod3_pwid_aic_both_subsum <- model_sub(pred3_pwid_aic_both, y_pred3_aic_both)[[4]]
+
+mod3_pwid_bic_both_subsum <- model_sub(pred3_pwid_bic_both, y_pred3_bic_both)[[4]]
+
+mod3_pwid_subsum <- rbind(mod3_pwid_aic_both_subsum, mod3_pwid_bic_both_subsum)
+
+rownames(mod3_pwid_subsum) <- c("", "AIC", "", "BIC")
+
+mod3_pwid_subsum 
+
+#### plot ####
+
+plot_mod1_uk <- plot.ci(y_sum1_uk, CI_mod1_uk, sum1_uk, y_lim = c(0, 0.00055))
+
+plot_mod1_uk
+
+plot_mod2_uk_aic <- plot.ci(y_sum2_uk_aic_both, CI_mod2_uk_aic, 
+                            sum2_uk_aic_both, c(5000, 40000), c(0, 0.00018))
+
+plot_mod2_uk_bic <- plot.ci(y_sum2_uk_bic_both, CI_mod2_uk_bic, 
+                            sum2_uk_bic_both, c(5000, 40000), c(0, 0.00018))
+
+library(patchwork)
+
+(plot_mod2_uk_aic + plot_mod2_uk_bic) + plot_annotation(tag_levels = "A")
+
+
+
+plot_mod1_pwid <- plot.ci(y_sum1_pwid, CI_mod1_pwid, sum1_pwid, y_lim = c(0, 0.00055))
+
+plot_mod1_pwid
+
+plot_mod2_pwid_aic <- plot.ci(y_sum2_pwid_aic_both, CI_mod2_pwid_aic, 
+                              sum2_pwid_aic_both, c(20000, 80000))
+
+plot_mod2_pwid_bic <- plot.ci(y_sum2_pwid_bic_both, CI_mod2_pwid_bic, 
+                              sum2_pwid_bic_both, c(20000, 80000))
+
+library(patchwork)
+
+(plot_mod2_pwid_aic + plot_mod2_pwid_bic) + plot_annotation(tag_levels = "A")
+
+
+plot_mod2_pwid_aic_sub <- plot_ci_sub(pred2_pwid_aic_both, y_pred2_pwid_aic_both,
+                                      c(5000, 40000), c(0, 3e-04))
+
+plot_mod2_pwid_aic_sub +  plot_annotation(tag_levels = c('1'), tag_prefix = 'A')
+
+
+plot_mod2_pwid_bic_sub <- plot_ci_sub(pred2_pwid_bic_both, y_pred2_pwid_bic_both,
+                                      c(5000, 40000), c(0, 3.5e-04))
+
+
+plot_mod2_pwid_bic_sub +  plot_annotation(tag_levels = c('1'), tag_prefix = 'B')
+
+y_sum3_pwid_aic_both_na <- y_sum3_pwid_aic_both
+
+y_sum3_pwid_aic_both_na[y_sum3_pwid_aic_both > 100000] <- NA
+
+y_sum3_pwid_bic_both_na <- y_sum3_pwid_bic_both
+
+y_sum3_pwid_bic_both_na[y_sum3_pwid_bic_both > 100000] <- NA
+
+
+plot_mod3_pwid_aic <- plot.ci(y_sum3_pwid_aic_both_na, CI_mod3_pwid_aic, 
+                              sum3_pwid_aic_both, y_lim = c(0, 4e-05))
+
+plot_mod3_pwid_bic <- plot.ci(y_sum3_pwid_bic_both_na, CI_mod3_pwid_bic, 
+                              sum3_pwid_bic_both, y_lim = c(0, 4e-05))
+
+library(patchwork)
+
+(plot_mod3_pwid_aic + plot_mod3_pwid_bic) + plot_annotation(tag_levels = "A")
+
+
+y_pred3_pwid_aic_both_na <- y_pred3_aic_both
+
+y_pred3_pwid_aic_both_na[y_pred3_pwid_aic_both_na>100000] <- NA 
+
+y_pred3_pwid_bic_both_na <- y_pred3_bic_both
+
+y_pred3_pwid_bic_both_na[y_pred3_pwid_bic_both_na>100000] <- NA
+  
+plot_mod3_pwid_aic_sub <- plot_ci_sub(pred3_pwid_aic_both, y_pred3_pwid_aic_both_na,
+                                      c(2000, 70000), c(0, 8e-05))
+
+plot_mod3_pwid_aic_sub +  plot_annotation(tag_levels = c('1'), tag_prefix = 'A')
+
+
+plot_mod3_pwid_bic_sub <- plot_ci_sub(pred3_pwid_bic_both, y_pred3_pwid_bic_both_na,
+                                      c(2000, 70000), c(0, 1.4e-04))
+
+
+plot_mod3_pwid_bic_sub +  plot_annotation(tag_levels = c('1'), tag_prefix = 'B')
