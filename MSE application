@@ -1,27 +1,6 @@
-#### UK data ####
-#### 
-LA <- c(rep(factor(0), 16), rep(factor(1),16))
+#### functions ####
 
-NG <- rep(factor(c(0, 1, 0, 1)), c(8, 8, 8, 8))
-
-PF <- rep(rep(factor(c(0, 1)), rep(4, 2)), 4)
-
-GO <- rep(rep(factor(c(0, 1)), rep(2, 2)), 8)
-
-GP <- rep(factor(c(0, 1)), 16)
-
-y <- c(NA, 316, 695, 8, 995, 11, 76, 0, 
-       463, 1, 19, 0, 62, 0, 4, 0, 
-       54, 0, 3, 0, 19, 0, 0, 0, 
-       15, 0, 1, 0, 1, 0, 1, 0)
-
-UK <- data.frame(LA, NG, PF, GO, GP, y)
-
-uk <- UK[-1, ]
-
-miss.x_uk <- UK[1, 1:5]
-
-sum_obs_uk <- sum(uk$y, na.rm = T)
+## calculate the confidence interval
 
 CI_cal <- function(sum.ci){
   
@@ -30,6 +9,7 @@ CI_cal <- function(sum.ci){
   return(ci_mod)
 }
 
+## output format
 output <- function(ci_mod_aic, ci_mod_bic, mod_aic, mod_bic, 
                    sum_aic, sum_bic){
   
@@ -57,6 +37,8 @@ output <- function(ci_mod_aic, ci_mod_bic, mod_aic, mod_bic,
   return(output)
 }
 
+## plot the confidence intervall
+
 plot.ci <- function(sum.ci, ci, sum, x_lim = NULL, y_lim = NULL){
   
   dens <- with(density(sum.ci, na.rm = T), data.frame(x, y))
@@ -82,6 +64,8 @@ plot.ci <- function(sum.ci, ci, sum, x_lim = NULL, y_lim = NULL){
   
 }
 
+## plot the confidence interval by covariates
+
 plot_ci_sub <- function(pred, y_pred_ci, x_lim = NULL, y_lim = NULL){
   
   model.sub <- model_sub(pred, y_pred_ci)
@@ -103,6 +87,31 @@ plot_ci_sub <- function(pred, y_pred_ci, x_lim = NULL, y_lim = NULL){
   
 }
 
+
+#### UK data ####
+
+LA <- c(rep(factor(0), 16), rep(factor(1),16))
+
+NG <- rep(factor(c(0, 1, 0, 1)), c(8, 8, 8, 8))
+
+PF <- rep(rep(factor(c(0, 1)), rep(4, 2)), 4)
+
+GO <- rep(rep(factor(c(0, 1)), rep(2, 2)), 8)
+
+GP <- rep(factor(c(0, 1)), 16)
+
+y <- c(NA, 316, 695, 8, 995, 11, 76, 0, 
+       463, 1, 19, 0, 62, 0, 4, 0, 
+       54, 0, 3, 0, 19, 0, 0, 0, 
+       15, 0, 1, 0, 1, 0, 1, 0)
+
+UK <- data.frame(LA, NG, PF, GO, GP, y)
+
+uk <- UK[-1, ]
+
+miss.x_uk <- UK[1, 1:5]
+
+sum_obs_uk <- sum(uk$y, na.rm = T)
 
 #### model 1: all main effects ####
 
@@ -131,8 +140,6 @@ for(i in 1:B){
   
   y_sum1_uk[i] <- sum_obs_uk + sum(y_pred1_uk[i])
 }
-
-
 
 CI_mod1_uk <- quantile(y_sum1_uk, c(0.025, 0.975))
 
@@ -211,14 +218,17 @@ for(i in 1:B){
   
   uk_new2 <- data.frame(y_new2_uk, uk[,-6])
   
-  model2_uk <- glm(y_new2_uk ~ (.)^2 - LA : GP, family = poisson, data = uk_new2)
+  model2_uk <- glm(y_new2_uk ~ (.)^2 - LA : GP, family = poisson, 
+                   data = uk_new2)
   
   fit2_uk_aic_both <- stepAIC(model2_uk, direction = "both", trace = 0, k = 2,
-                              lower = formula(nothing_uk), upper = formula(model2_uk))
+                              lower = formula(nothing_uk), 
+                              upper = formula(model2_uk))
   
   fit2_uk_bic_both <- stepAIC(model2_uk, direction = "both", 
                               trace = 0, k = log(n),
-                              lower = formula(nothing_uk), uppwer = formula(model2_uk))
+                              lower = formula(nothing_uk), 
+                              uppwer = formula(model2_uk))
   
   y_pred2_uk_aic_both[i] <- predict(fit2_uk_aic_both,
                                     newdata = miss.x_uk, type = "response")
@@ -230,7 +240,6 @@ for(i in 1:B){
   
   y_sum2_uk_bic_both[i] <- sum_obs_uk + sum(y_pred2_uk_bic_both[i])
 }
-
 
 CI_mod2_uk_aic <- CI_cal(y_sum2_uk_aic_both)
 
@@ -244,7 +253,6 @@ colnames(mod2_uk_output) <- c("Model", "Estimated  population",
                               "95% confidence interval", "AIC", "BIC")
 
 mod2_uk_output
-
 
 
 #### IDU data ####
@@ -271,6 +279,8 @@ miss.x_pwid <- data.frame(S1 = rep(factor(0), 8), S2 = rep(factor(0), 8),
 
 sum_obs_pwid <- sum(pwid$y, na.rm = T)
 
+
+
 model_sub <- function(pred, y_pred.ci){
   
   GGC <- sum(pred[miss.x_pwid$Region == 0])
@@ -285,50 +295,62 @@ model_sub <- function(pred, y_pred.ci){
   
   Old <- sum(pred[miss.x_pwid$Age == 1])
   
-  GGC_sum <- sum(pwid_fac$y[miss.x_pwid$Region == 0]) + rowSums(y_pred.ci[ ,miss.x_pwid$Region == 0])
+  GGC_sum <- sum(pwid_fac$y[miss.x_pwid$Region == 0]) + 
+    rowSums(y_pred.ci[ ,miss.x_pwid$Region == 0])
   
-  Rest_sum <- sum(pwid_fac$y[miss.x_pwid$Region == 1]) + rowSums(y_pred.ci[ ,miss.x_pwid$Region == 1])
+  Rest_sum <- sum(pwid_fac$y[miss.x_pwid$Region == 1]) + 
+    rowSums(y_pred.ci[ ,miss.x_pwid$Region == 1])
   
-  Male_sum <- sum(pwid_fac$y[miss.x_pwid$Gender == 0]) + rowSums(y_pred.ci[ ,miss.x_pwid$Gender == 0])
+  Male_sum <- sum(pwid_fac$y[miss.x_pwid$Gender == 0]) + 
+    rowSums(y_pred.ci[ ,miss.x_pwid$Gender == 0])
   
-  Female_sum <- sum(pwid_fac$y[miss.x_pwid$Gender == 1]) + rowSums(y_pred.ci[ ,miss.x_pwid$Gender == 1])
+  Female_sum <- sum(pwid_fac$y[miss.x_pwid$Gender == 1]) + 
+    rowSums(y_pred.ci[ ,miss.x_pwid$Gender == 1])
   
-  Young_sum <- sum(pwid_fac$y[miss.x_pwid$Age == 0]) + rowSums(y_pred.ci[ ,miss.x_pwid$Age == 0])
+  Young_sum <- sum(pwid_fac$y[miss.x_pwid$Age == 0]) + 
+    rowSums(y_pred.ci[ ,miss.x_pwid$Age == 0])
   
-  Old_sum <- sum(pwid_fac$y[miss.x_pwid$Age == 1]) + rowSums(y_pred.ci[ ,miss.x_pwid$Age == 1])
+  Old_sum <- sum(pwid_fac$y[miss.x_pwid$Age == 1]) + 
+    rowSums(y_pred.ci[ ,miss.x_pwid$Age == 1])
   
-  ci_GGC <- quantile(rowSums(y_pred.ci[ ,miss.x_pwid$Region == 0]), c(0.025, 0.975), 
-                     na.rm = T)
+  ci_GGC <- quantile(rowSums(y_pred.ci[ ,miss.x_pwid$Region == 0]), 
+                     c(0.025, 0.975), na.rm = T)
   
-  ci_Rest <- quantile(rowSums(y_pred.ci[ ,miss.x_pwid$Region == 1]), c(0.025, 0.975), 
-                      na.rm = T)
+  ci_Rest <- quantile(rowSums(y_pred.ci[ ,miss.x_pwid$Region == 1]), 
+                      c(0.025, 0.975), na.rm = T)
   
-  ci_Male <- quantile(rowSums(y_pred.ci[ ,miss.x_pwid$Gender == 0]), c(0.025, 0.975), 
-                      na.rm = T)
+  ci_Male <- quantile(rowSums(y_pred.ci[ ,miss.x_pwid$Gender == 0]), 
+                      c(0.025, 0.975), na.rm = T)
   
-  ci_Female <- quantile(rowSums(y_pred.ci[ ,miss.x_pwid$Gender == 1]), c(0.025, 0.975), 
-                        na.rm = T)
+  ci_Female <- quantile(rowSums(y_pred.ci[ ,miss.x_pwid$Gender == 1]), 
+                        c(0.025, 0.975), na.rm = T)
   
-  ci_Young <- quantile(rowSums(y_pred.ci[ ,miss.x_pwid$Age == 0]), c(0.025, 0.975), 
-                       na.rm = T)
+  ci_Young <- quantile(rowSums(y_pred.ci[ ,miss.x_pwid$Age == 0]), 
+                       c(0.025, 0.975), na.rm = T)
   
-  ci_Old <- quantile(rowSums(y_pred.ci[ ,miss.x_pwid$Age == 1]), c(0.025, 0.975), 
-                     na.rm = T)
+  ci_Old <- quantile(rowSums(y_pred.ci[ ,miss.x_pwid$Age == 1]), 
+                     c(0.025, 0.975), na.rm = T)
   
-  ci_GGC_print <- paste("(", paste(round(ci_GGC,0), collapse = ", "), ")", sep = "")
+  ci_GGC_print <- paste("(", paste(round(ci_GGC,0), collapse = ", "), ")", 
+                        sep = "")
   
-  Ci_Rest_print <- paste("(", paste(round(ci_Rest,0), collapse = ", "), ")", sep = "")
+  Ci_Rest_print <- paste("(", paste(round(ci_Rest,0), collapse = ", "), ")", 
+                         sep = "")
   
-  ci_Male_print <- paste("(", paste(round(ci_Male,0), collapse = ", "), ")", sep = "")
+  ci_Male_print <- paste("(", paste(round(ci_Male,0), collapse = ", "), ")", 
+                         sep = "")
   
-  ci_Female_print <- paste("(", paste(round(ci_Female,0), collapse = ", "), ")", sep = "")
+  ci_Female_print <- paste("(", paste(round(ci_Female,0), collapse = ", "), ")", 
+                           sep = "")
   
-  ci_Young_print <- paste("(", paste(round(ci_Young,0), collapse = ", "), ")", sep = "")
+  ci_Young_print <- paste("(", paste(round(ci_Young,0), collapse = ", "), ")", 
+                          sep = "")
   
-  ci_Old_print <- paste("(", paste(round(ci_Female,0), collapse = ", "), ")", sep = "")
+  ci_Old_print <- paste("(", paste(round(ci_Female,0), collapse = ", "), ")", 
+                        sep = "")
   
-  ci_print <- c(ci_GGC_print, Ci_Rest_print, ci_Male_print, ci_Female_print, 
-                ci_Young_print, ci_Old_print)
+  ci_print <- c(ci_GGC_print, Ci_Rest_print, ci_Male_print, 
+                ci_Female_print, ci_Young_print, ci_Old_print)
   
   estimate <- round(c(GGC, Rest, Male, Female, Young, Old), 0)
   
@@ -344,7 +366,6 @@ model_sub <- function(pred, y_pred.ci){
   
   return(list(estimate1, ci, sum, output))
 }
-
 
 
 #### model 1: all main effects ####
@@ -423,7 +444,6 @@ library(MASS)
 
 mod2_pwid_aic_both <- stepAIC(mod2_pwid, direction = "both", trace = 0, k = 2,
                               lower = nothing_pwid, upper = mod2_pwid)
-
 
 ### use BIC
 
@@ -514,7 +534,7 @@ nothing_pwid <- glm(y ~ (.), family = poisson, data = pwid_fac)
 
 pred3 <- predict(mod3_pwid, newdata = miss.x_pwid, type = "response")
 
-sum3_pwid <- sum_obs_pwid + sum(pred3) # 
+sum3_pwid <- sum_obs_pwid + sum(pred3) # 1.416644e+12
 
 
 library(MASS)
